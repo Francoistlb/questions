@@ -107,11 +107,12 @@ function App() {
   };
 
   const checkAnswer = (reponseChoisie) => {
+
     if (timer) {
       clearInterval(timer);
       setTimer(null);
     }
-
+    
     setSelectedAnswer(reponseChoisie);
     const responseTime = (Date.now() - questionStartTime) / 1000;
     socket.emit("checkAnswer", {
@@ -188,7 +189,14 @@ function App() {
         <h1>Quiz Histoire</h1>
         <div className="game-info">
           <p>Temps restant: {timeLeft}s</p>
-          <p>{playerName}: {players.find(p => p.id === socket.id)?.score || 0} points</p>
+          <div className="players-list">
+            {players.map((player) => (
+              <p key={player.id}>
+                {player.name}: {player.score || 0} points
+                {player.hasAnswered ? " ✓" : ""}
+              </p>
+            ))}
+          </div>
         </div>
         
         {question && (
@@ -200,7 +208,7 @@ function App() {
                   key={index}
                   onClick={() => checkAnswer(index)}
                   className={getAnswerClassName(index)}
-                  disabled={timeLeft === 0}
+                  disabled={timeLeft === 0 || selectedAnswer !== null}
                 >
                   {question[`reponse${index}`]}
                 </button>
