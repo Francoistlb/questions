@@ -48,6 +48,7 @@ function App() {
       
       if (timer) {
         clearInterval(timer);
+        setTimer(null);
       }
 
       setTimeLeft(QUESTION_DURATION);
@@ -84,6 +85,7 @@ function App() {
       socket.off("answerResult");
       if (timer) {
         clearInterval(timer);
+        setTimer(null);
       }
     };
   }, [gameCode]);
@@ -105,6 +107,11 @@ function App() {
   };
 
   const checkAnswer = (reponseChoisie) => {
+    if (timer) {
+      clearInterval(timer);
+      setTimer(null);
+    }
+
     setSelectedAnswer(reponseChoisie);
     const responseTime = (Date.now() - questionStartTime) / 1000;
     socket.emit("checkAnswer", {
