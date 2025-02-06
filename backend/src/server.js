@@ -32,6 +32,12 @@ function calculateScore(responseTime, isCorrect) {
   }
 }
 
+// Fonction utilitaire pour vérifier si la partie est terminée
+function isGameOver(gameSession) {
+  return gameSession.questionCount >= 10 && 
+         gameSession.players.every(player => player.hasAnswered);
+}
+
 // Événements Socket.IO
 io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket, ce code est exécuté.
   console.log("Nouvelle connexion socket:", socket.id);
@@ -49,7 +55,8 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
         score: 0
       }],
       currentQuestion: null,
-      isStarted: false
+      isStarted: false,
+      questionCount: 0
     };
 
     gameSessions.set(gameCode, gameSession);
@@ -84,7 +91,13 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
     gameSession.players.push(newPlayer);
     socket.join(gameCode);
 
-    // Informer tous les joueurs de la session
+    // Envoyer l'état initial au nouveau joueur
+    socket.emit("gameCreated", {
+      gameCode,
+      players: gameSession.players
+    });
+
+    // Informer tous les joueurs de la session du nouveau joueur
     io.to(gameCode).emit("playerJoined", {
       players: gameSession.players
     });
@@ -108,15 +121,19 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
   async function sendNewQuestion(gameCode) {
     console.log("sendNewQuestion appelé pour:", gameCode);
     try {
+      const gameSession = gameSessions.get(gameCode);
+      if (!gameSession) {
+        console.log("Pas de session trouvée pour:", gameCode);
+        return;
+      }
+
       const question = await db('questions')
         .select('*')
         .orderByRaw('RANDOM()')
         .first();
 
-      const gameSession = gameSessions.get(gameCode);
-      if (!gameSession) {
-        console.log("Pas de session trouvée pour:", gameCode);
-        return;
+      if (!question) {
+        throw new Error("Aucune question disponible");
       }
 
       gameSession.currentQuestion = question;
@@ -130,7 +147,7 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
       });
     } catch (error) {
       console.error("Erreur dans sendNewQuestion:", error);
-      io.to(gameCode).emit("error", error.message);
+      io.to(gameCode).emit("error", "Erreur lors de l'envoi de la question");
     }
   }
 
@@ -143,21 +160,14 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
         return;
       }
 
-      // Ajouter un compteur de questions si non existant
-      if (!gameSession.questionCount) {
-        gameSession.questionCount = 1;
-      }
-
       const player = gameSession.players.find(p => p.id === socket.id);
       if (!player) return;
 
-      // Mise à jour du statut et du score du joueur
       player.hasAnswered = true;
+
       if (reponseChoisie === 0) {
-        // Cas du timeout : pas de points
         player.score += 0;
       } else {
-        // Cas d'une réponse normale : calcul des points
         const question = await db('questions')
           .select('bonne_reponse')
           .where('id', questionId)
@@ -166,7 +176,6 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
         const score = calculateScore(responseTime, correct);
         player.score += score;
 
-        // Envoyer le résultat de la réponse individuelle
         io.to(gameCode).emit("answerResult", {
           playerId: socket.id,
           playerName: player.name,
@@ -177,49 +186,38 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
         });
       }
 
-      // Vérifier si c'est la dernière question
-      if (gameSession.questionCount >= 10) {
-        // Trier les joueurs par score
-        const sortedPlayers = gameSession.players
-          .sort((a, b) => b.score - a.score);
-
-        // Envoyer le résultat final
-        io.to(gameCode).emit("gameOver", {
-          players: sortedPlayers,
-          message: "Partie terminée !"
-        });
-        
-        // // Optionnel : Supprimer la session
-        // setTimeout(() => {
-        //   gameSessions.delete(gameCode);
-        // }, 5000);
-        
-        return;
-      }
-
-      // Si ce n'est pas la dernière question, continuer normalement
       const allPlayersAnswered = gameSession.players.every(p => p.hasAnswered);
-      if (reponseChoisie === 0 || allPlayersAnswered) {
-        gameSession.questionCount++; // Incrémenter le compteur
-        
-        // Récupérer une nouvelle question
-        const newQuestion = await db('questions')
-          .select('*')
-          .orderByRaw('RANDOM()')
-          .first();
-
-        if (newQuestion) {
-          gameSession.currentQuestion = newQuestion;
-          gameSession.players.forEach(p => p.hasAnswered = false);
-
+      
+      if (allPlayersAnswered) {
+        if (gameSession.questionCount >= 10) {
+          // Envoyer d'abord le résultat de la dernière question
+          io.to(gameCode).emit("lastQuestionResult", {
+            players: gameSession.players
+          });
+          
+          // Attendre 3 secondes avant d'envoyer les scores finaux
           setTimeout(() => {
-            io.to(gameCode).emit("question", {
-              ...newQuestion,
-              questionNumber: gameSession.questionCount,
-              totalQuestions: 10
+            const sortedPlayers = [...gameSession.players].sort((a, b) => b.score - a.score);
+            io.to(gameCode).emit("gameOver", {
+              players: sortedPlayers,
+              message: "Partie terminée !"
             });
-          }, 1500);
+            
+            // Nettoyer la session après un délai supplémentaire
+            setTimeout(() => {
+              gameSessions.delete(gameCode);
+            }, 5000);
+          }, 3000); // 3 secondes de délai
+          
+          return;
         }
+
+        gameSession.questionCount++;
+        gameSession.players.forEach(p => p.hasAnswered = false);
+
+        setTimeout(async () => {
+          await sendNewQuestion(gameCode);
+        }, 1500);
       }
 
     } catch (error) {

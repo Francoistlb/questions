@@ -80,6 +80,7 @@ function App() {
     });
 
     socket.on("gameOver", ({ players, message }) => {
+      console.log("Partie terminée, affichage des scores finaux");
       setGameState('gameOver');
       setPlayers(players);
       setMessage(message);
@@ -193,7 +194,7 @@ function App() {
           <h3>Joueurs:</h3>
           <ul>
             {players.map((player) => (
-              <li key={player.id}>{player.name} - {player.score || 0} points</li>
+              <li key={player.id}>{player.name}</li>
             ))}
           </ul>
           {isHost && <button onClick={startGame}>Démarrer la partie</button>}
