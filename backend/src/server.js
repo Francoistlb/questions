@@ -73,12 +73,12 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
     const gameSession = gameSessions.get(gameCode);
     
     if (!gameSession) {
-      socket.emit("error", "Session de jeu non trouvée");
+      socket.emit("joinError", "Cette partie n'existe pas");
       return;
     }
 
     if (gameSession.isStarted) {
-      socket.emit("error", "La partie a déjà commencé");
+      socket.emit("joinError", "Impossible de rejoindre : la partie a déjà commencé");
       return;
     }
 

@@ -19,6 +19,7 @@ function App() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
   const MAX_QUESTIONS = 10;
+  const [joinError, setJoinError] = useState('');
 
   useEffect(() => {
     console.log("État actuel du gameCode:", gameCode);
@@ -90,6 +91,11 @@ function App() {
       }
     });
 
+    socket.on("joinError", (errorMessage) => {
+      setJoinError(errorMessage);
+      setTimeout(() => setJoinError(''), 3000);
+    });
+
     return () => {
       socket.off("connect");
       socket.off("gameCreated");
@@ -97,6 +103,7 @@ function App() {
       socket.off("question");
       socket.off("answerResult");
       socket.off("gameOver");
+      socket.off("joinError");
       if (timer) {
         clearInterval(timer);
         setTimer(null);
@@ -178,6 +185,11 @@ function App() {
               />
               <button onClick={joinGame}>Rejoindre</button>
             </div>
+            {joinError && (
+              <div className="error-message">
+                {joinError}
+              </div>
+            )}
           </div>
         </div>
       </div>
