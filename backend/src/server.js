@@ -100,12 +100,13 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
     }
 
     gameSession.isStarted = true;
+    gameSession.questionCount = 1; // Initialiser le compteur
     await sendNewQuestion(gameCode);
   });
 
   // Fonction pour envoyer une nouvelle question
   async function sendNewQuestion(gameCode) {
-    console.log("sendNewQuestion appelé pour:", gameCode); // Debug log
+    console.log("sendNewQuestion appelé pour:", gameCode);
     try {
       const question = await db('questions')
         .select('*')
@@ -119,8 +120,14 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
       }
 
       gameSession.currentQuestion = question;
-      console.log("Envoi question:", question?.id); // Debug log
-      io.to(gameCode).emit("question", question);
+      console.log("Envoi question:", question?.id);
+      
+      // Envoyer la question avec le numéro de question actuel
+      io.to(gameCode).emit("question", {
+        ...question,
+        questionNumber: gameSession.questionCount,
+        totalQuestions: 10 // Nombre total de questions
+      });
     } catch (error) {
       console.error("Erreur dans sendNewQuestion:", error);
       io.to(gameCode).emit("error", error.message);
@@ -134,6 +141,11 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
       if (!gameSession) {
         socket.emit("error", "Session non trouvée");
         return;
+      }
+
+      // Ajouter un compteur de questions si non existant
+      if (!gameSession.questionCount) {
+        gameSession.questionCount = 1;
       }
 
       const player = gameSession.players.find(p => p.id === socket.id);
@@ -165,12 +177,30 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
         });
       }
 
-      // Passer à la question suivante si :
-      // - Soit c'est un timeout (reponseChoisie === 0)
-      // - Soit tous les joueurs ont répondu
+      // Vérifier si c'est la dernière question
+      if (gameSession.questionCount >= 10) {
+        // Trier les joueurs par score
+        const sortedPlayers = gameSession.players
+          .sort((a, b) => b.score - a.score);
+
+        // Envoyer le résultat final
+        io.to(gameCode).emit("gameOver", {
+          players: sortedPlayers,
+          message: "Partie terminée !"
+        });
+        
+        // // Optionnel : Supprimer la session
+        // setTimeout(() => {
+        //   gameSessions.delete(gameCode);
+        // }, 5000);
+        
+        return;
+      }
+
+      // Si ce n'est pas la dernière question, continuer normalement
       const allPlayersAnswered = gameSession.players.every(p => p.hasAnswered);
       if (reponseChoisie === 0 || allPlayersAnswered) {
-        console.log("Passage à la question suivante");
+        gameSession.questionCount++; // Incrémenter le compteur
         
         // Récupérer une nouvelle question
         const newQuestion = await db('questions')
@@ -179,13 +209,15 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
           .first();
 
         if (newQuestion) {
-          // Mettre à jour la session
           gameSession.currentQuestion = newQuestion;
           gameSession.players.forEach(p => p.hasAnswered = false);
 
-          // Envoyer la nouvelle question après un délai
           setTimeout(() => {
-            io.to(gameCode).emit("question", newQuestion);
+            io.to(gameCode).emit("question", {
+              ...newQuestion,
+              questionNumber: gameSession.questionCount,
+              totalQuestions: 10
+            });
           }, 1500);
         }
       }

@@ -42,7 +42,6 @@ function App() {
 
     socket.on("question", (questionData) => {
       console.log("Nouvelle question reçue");
-      setQuestionCount(prev => prev + 1);
       setQuestion(questionData);
       setMessage('');
       setGameState('game');
@@ -78,13 +77,15 @@ function App() {
     socket.on("answerResult", ({ playerName, correct, message, players }) => {
       setMessage(`${playerName}: ${message}`);
       setPlayers(players);
-      
-      if (questionCount >= MAX_QUESTIONS) {
-        setGameState('gameOver');
-        if (timer) {
-          clearInterval(timer);
-          setTimer(null);
-        }
+    });
+
+    socket.on("gameOver", ({ players, message }) => {
+      setGameState('gameOver');
+      setPlayers(players);
+      setMessage(message);
+      if (timer) {
+        clearInterval(timer);
+        setTimer(null);
       }
     });
 
@@ -94,6 +95,7 @@ function App() {
       socket.off("playerJoined");
       socket.off("question");
       socket.off("answerResult");
+      socket.off("gameOver");
       if (timer) {
         clearInterval(timer);
         setTimer(null);
@@ -143,6 +145,13 @@ function App() {
       className += isCorrect ? ' correct' : ' incorrect';
     }
     return className;
+  };
+
+  // Ajoutez ces styles pour le podium
+  const podiumStyles = {
+    1: { backgroundColor: '#FFD700', height: '120px' }, // Or
+    2: { backgroundColor: '#C0C0C0', height: '90px' },  // Argent
+    3: { backgroundColor: '#CD7F32', height: '60px' }   // Bronze
   };
 
   // Menu principal
@@ -198,19 +207,42 @@ function App() {
     return (
       <div className="App">
         <div className="game-over-container">
-          <h1>Fin de la partie !</h1>
+          <h1>Fin de la partie ! 🏆</h1>
+          
+          {/* Podium pour les 3 premiers */}
+          <div className="podium-container">
+            {players
+              .sort((a, b) => (b.score || 0) - (a.score || 0))
+              .slice(0, 3)
+              .map((player, index) => (
+                <div 
+                  key={player.id} 
+                  className="podium-place"
+                  style={podiumStyles[index + 1]}
+                >
+                  <div className="podium-player">
+                    <div className="podium-position">{index + 1}</div>
+                    <div className="podium-name">{player.name}</div>
+                    <div className="podium-score">{player.score} pts</div>
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          {/* Liste complète des scores */}
           <div className="final-scores">
-            <h2>Scores finaux</h2>
+            <h2>Classement final</h2>
             {players
               .sort((a, b) => (b.score || 0) - (a.score || 0))
               .map((player, index) => (
-                <div key={player.id} className={`player-score ${index === 0 ? 'winner' : ''}`}>
-                  <span className="rank">{index + 1}</span>
+                <div key={player.id} className={`player-score ${index < 3 ? `rank-${index + 1}` : ''}`}>
+                  <span className="rank">#{index + 1}</span>
                   <span className="player-name">{player.name}</span>
                   <span className="player-points">{player.score || 0} points</span>
                 </div>
               ))}
           </div>
+
           <button 
             className="new-game-button"
             onClick={() => {
@@ -246,6 +278,9 @@ function App() {
         
         {question && (
           <div className="question-container">
+            <div className="question-counter">
+              Question {question.questionNumber} / {question.totalQuestions}
+            </div>
             <h2 className="question-title">{question.question}</h2>
             <div className="answers-grid">
               {[1, 2, 3, 4].map((index) => (
