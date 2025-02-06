@@ -17,6 +17,8 @@ function App() {
   const [timer, setTimer] = useState(null);
   const [questionStartTime, setQuestionStartTime] = useState(null);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [questionCount, setQuestionCount] = useState(0);
+  const MAX_QUESTIONS = 10;
 
   useEffect(() => {
     console.log("État actuel du gameCode:", gameCode);
@@ -40,6 +42,7 @@ function App() {
 
     socket.on("question", (questionData) => {
       console.log("Nouvelle question reçue");
+      setQuestionCount(prev => prev + 1);
       setQuestion(questionData);
       setMessage('');
       setGameState('game');
@@ -75,6 +78,14 @@ function App() {
     socket.on("answerResult", ({ playerName, correct, message, players }) => {
       setMessage(`${playerName}: ${message}`);
       setPlayers(players);
+      
+      if (questionCount >= MAX_QUESTIONS) {
+        setGameState('gameOver');
+        if (timer) {
+          clearInterval(timer);
+          setTimer(null);
+        }
+      }
     });
 
     return () => {
@@ -183,6 +194,40 @@ function App() {
   }
 
   // Jeu
+  if (gameState === 'gameOver') {
+    return (
+      <div className="App">
+        <div className="game-over-container">
+          <h1>Fin de la partie !</h1>
+          <div className="final-scores">
+            <h2>Scores finaux</h2>
+            {players
+              .sort((a, b) => (b.score || 0) - (a.score || 0))
+              .map((player, index) => (
+                <div key={player.id} className={`player-score ${index === 0 ? 'winner' : ''}`}>
+                  <span className="rank">{index + 1}</span>
+                  <span className="player-name">{player.name}</span>
+                  <span className="player-points">{player.score || 0} points</span>
+                </div>
+              ))}
+          </div>
+          <button 
+            className="new-game-button"
+            onClick={() => {
+              setGameState('menu');
+              setQuestionCount(0);
+              setPlayers([]);
+              setQuestion(null);
+              setMessage('');
+            }}
+          >
+            Nouvelle Partie
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <div className="game-container">
