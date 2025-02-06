@@ -81,7 +81,7 @@ function App() {
     });
 
     socket.on("gameOver", ({ players, message }) => {
-      console.log("Partie terminée, affichage des scores finaux");
+      console.log("Partie terminée:", message);
       setGameState('gameOver');
       setPlayers(players);
       setMessage(message);
@@ -221,6 +221,7 @@ function App() {
       <div className="App">
         <div className="game-over-container">
           <h1>Fin de la partie ! 🏆</h1>
+          {message && <div className="game-over-message">{message}</div>}
           
           {/* Podium pour les 3 premiers */}
           <div className="podium-container">

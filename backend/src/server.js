@@ -290,18 +290,38 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
 
   // Gérer la déconnexion
   socket.on("disconnect", () => {
-    // Nettoyer les sessions où le joueur était présent
     gameSessions.forEach((session, code) => {
       const playerIndex = session.players.findIndex(p => p.id === socket.id);
       if (playerIndex !== -1) {
         session.players.splice(playerIndex, 1);
         
-        // Si c'était l'hôte, terminer la session
+        // Si c'était l'hôte
         if (session.host === socket.id) {
-          io.to(code).emit("gameEnded", "L'hôte s'est déconnecté");
+          // Trier et assigner les rangs avant d'envoyer le gameOver
+          const sortedPlayers = [...session.players].sort((a, b) => b.score - a.score);
+          let currentRank = 1;
+          let currentScore = sortedPlayers[0]?.score || 0;
+          
+          const rankedPlayers = sortedPlayers.map((player, index) => {
+            if (player.score < currentScore) {
+              currentRank = index + 1;
+              currentScore = player.score;
+            }
+            return {
+              ...player,
+              rank: currentRank
+            };
+          });
+
+          // Envoyer le gameOver avec le message approprié
+          io.to(code).emit("gameOver", {
+            players: rankedPlayers,
+            message: "Partie terminée : l'hôte s'est déconnecté"
+          });
+          
           gameSessions.delete(code);
         } else {
-          // Informer les autres joueurs
+          // Si c'est un joueur normal qui se déconnecte
           io.to(code).emit("playerLeft", {
             players: session.players
           });
