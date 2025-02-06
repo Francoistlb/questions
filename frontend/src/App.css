@@ -272,3 +272,14 @@
   border-radius: 4px;
   display: inline-block;
 }
+
+.new-game-button {
+  margin-top: 20px;
+  padding: 12px 24px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}

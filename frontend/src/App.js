@@ -213,16 +213,15 @@ function App() {
           {/* Podium pour les 3 premiers */}
           <div className="podium-container">
             {players
-              .sort((a, b) => (b.score || 0) - (a.score || 0))
               .slice(0, 3)
-              .map((player, index) => (
+              .map((player) => (
                 <div 
                   key={player.id} 
                   className="podium-place"
-                  style={podiumStyles[index + 1]}
+                  style={podiumStyles[player.rank]}
                 >
                   <div className="podium-player">
-                    <div className="podium-position">{index + 1}</div>
+                    <div className="podium-position">{player.rank}</div>
                     <div className="podium-name">{player.name}</div>
                     <div className="podium-score">{player.score} pts</div>
                   </div>
@@ -233,15 +232,13 @@ function App() {
           {/* Liste complète des scores */}
           <div className="final-scores">
             <h2>Classement final</h2>
-            {players
-              .sort((a, b) => (b.score || 0) - (a.score || 0))
-              .map((player, index) => (
-                <div key={player.id} className={`player-score ${index < 3 ? `rank-${index + 1}` : ''}`}>
-                  <span className="rank">#{index + 1}</span>
-                  <span className="player-name">{player.name}</span>
-                  <span className="player-points">{player.score || 0} points</span>
-                </div>
-              ))}
+            {players.map((player) => (
+              <div key={player.id} className={`player-score ${player.rank <= 3 ? `rank-${player.rank}` : ''}`}>
+                <span className="rank">#{player.rank}</span>
+                <span className="player-name">{player.name}</span>
+                <span className="player-points">{player.score || 0} points</span>
+              </div>
+            ))}
           </div>
 
           <button 
@@ -252,6 +249,14 @@ function App() {
               setPlayers([]);
               setQuestion(null);
               setMessage('');
+              setGameCode('');
+              setIsHost(false);
+              setSelectedAnswer(null);
+              setTimeLeft(QUESTION_DURATION);
+              
+              if (gameCode) {
+                socket.emit('leaveGame', gameCode);
+              }
             }}
           >
             Nouvelle Partie

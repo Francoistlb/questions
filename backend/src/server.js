@@ -197,9 +197,27 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
           
           // Attendre 3 secondes avant d'envoyer les scores finaux
           setTimeout(() => {
+            // Trier uniquement par score décroissant
             const sortedPlayers = [...gameSession.players].sort((a, b) => b.score - a.score);
+
+            // Assigner les rangs en tenant compte des égalités
+            let currentRank = 1;
+            let currentScore = sortedPlayers[0].score; // Score du premier joueur
+            
+            const rankedPlayers = sortedPlayers.map((player, index) => {
+              // Si le score est différent du score actuel, mettre à jour le rang
+              if (player.score < currentScore) {
+                currentRank = index + 1;
+                currentScore = player.score;
+              }
+              return {
+                ...player,
+                rank: currentRank
+              };
+            });
+
             io.to(gameCode).emit("gameOver", {
-              players: sortedPlayers,
+              players: rankedPlayers,
               message: "Partie terminée !"
             });
             
@@ -207,7 +225,7 @@ io.on("connection", (socket) => {  // Lorsqu'un client se connecte via WebSocket
             setTimeout(() => {
               gameSessions.delete(gameCode);
             }, 5000);
-          }, 3000); // 3 secondes de délai
+          }, 3000);
           
           return;
         }
